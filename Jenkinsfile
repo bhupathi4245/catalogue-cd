@@ -41,19 +41,21 @@ pipeline {
         stage('Check Status') {
             steps {
                 script {
-                    def deploymentStatus = sh(returnStdout: true, script: "kubectl rollout status deployment/catalogue --request=30s || echo FAILED").trim()
-                    if (deploymentStatus.contains(successfully rolled out)) {
-                        echo "Deployment successful."              
-                    } else {
-                        sh """
-                            helm rollback $COMPONENT 1 -n ${PROJECT}
-                            sleep 20
-                        """
-                        def rollbackStatus = sh(returnStdout: true, script: "kubectl rollout status deployment/catalogue --request=30s || echo FAILED").trim()
-                        if (rollbacktStatus.contains(successfully rolled out)) {
-                            error "Deployment is Failure, Rollback success."
+                    withAWS(credentials: 'aws-creds', region: ${REGION}) {
+                        def deploymentStatus = sh(returnStdout: true, script: "kubectl rollout status deployment/catalogue --request=30s || echo FAILED").trim()
+                        if (deploymentStatus.contains("successfully rolled out")) {
+                            echo "Deployment successful."              
                         } else {
-                        error "Deployment failed. Rollback failed. Application is not in a stable state."
+                            sh """
+                                helm rollback $COMPONENT 1 -n ${PROJECT}
+                                sleep 20
+                            """
+                            def rollbackStatus = sh(returnStdout: true, script: "kubectl rollout status deployment/catalogue --request=30s || echo FAILED").trim()
+                            if (rollbacktStatus.contains("successfully rolled out")) {
+                                error "Deployment is Failure, Rollback success."
+                            } else {
+                            error "Deployment failed. Rollback failed. Application is not in a stable state."
+                            }
                         }
                     }
                 }
